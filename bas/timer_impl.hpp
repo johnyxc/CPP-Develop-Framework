@@ -153,6 +153,7 @@ namespace bas
 		public:
 			void init()
 			{
+				exit_		 = false;
 				run_		  = true;
 				event_		  = CreateEvent(NULL, FALSE, FALSE, NULL);
 				run_event_	  = CreateEvent(NULL, FALSE, FALSE, NULL);

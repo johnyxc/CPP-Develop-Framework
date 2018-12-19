@@ -388,10 +388,15 @@ namespace bas
 				//	直接采用加锁的方式，防止多线程同时调用 err_cb_
 				//	此函数并不会释放 socket，而是由上层调用 close 接口释放
 				//	当 socket 错误时，不要尝试重新使用此对象，而是应该新建一个 socket 对象
-				std::lock_guard<std::recursive_mutex> lock(mutex_);
-				is_open_ = false;
-				if (err_cb_) err_cb_(err);
-				err_cb_ = {};
+				decltype(err_cb_) cb;
+
+				{
+					std::lock_guard<std::recursive_mutex> lock(mutex_);
+					cb = err_cb_;
+					err_cb_ = {};
+				}
+
+				if (cb) cb(err);
 			}
 
 		private :

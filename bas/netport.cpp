@@ -106,7 +106,6 @@ public :
 		ci->body_len = len;
 		if (!ci->cmd_body)
 		{
-			LOG(LT_DEBUG) << "Exception Send Body Len " << len << LOG_END;
 			mem_free((void*)ci);
 			return;
 		}
@@ -317,7 +316,7 @@ private :
 		if (recv_cb_) recv_cb_ = {};
 		if (send_cb_) send_cb_ = {};
 		if (err_cb_)  err_cb_  = {};
-
+		//	不加检测,从而在程序停止时产生dump文件分析状态
 		if (sock_->valid())
 		{
 			LOG(LT_DEBUG) << "Netport Close Socket : " << reinterpret_cast<int>(sock_.get()) << LOG_END;

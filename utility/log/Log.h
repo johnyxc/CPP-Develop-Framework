@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -59,8 +60,11 @@ public:
 	void reset_mutex(std::recursive_mutex* mtx);
 	void reset_fd(FILE* fd);
 	void set_forbidden(bool b);
+	bool get_forbidden();
+	template <typename T1, typename T2 = char>
+	void write_log(const T1& cont);
 
-protected:
+private:
 	FILE*					fd_;
 	bool					forbidden_;
 	jf_log::LOG_TYPE		type_;
@@ -68,10 +72,10 @@ protected:
 };
 
 //	默认多字节版本
-struct jf_log_t : jf_log_parent
+struct jf_log_t
 {
 public:
-	jf_log_t(jf_log::LOG_TYPE lt);
+	jf_log_t(jf_log::LOG_TYPE lt, jf_log_parent* pa);
 	~jf_log_t();
 
 public:
@@ -86,87 +90,77 @@ public:
 	template <>
 	jf_log_t& operator << (const char* v)
 	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		if (!forbidden_) log_content_ += v;
+		if (jf_parent_->get_forbidden()) return *this;
+		log_content_ += v;
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const std::string& v)
 	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		if (!forbidden_) log_content_ += v;
+		if (jf_parent_->get_forbidden()) return *this;
+		log_content_ += v;
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const std::map<std::string, std::string>& v)
 	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		if (!forbidden_)
+		if (jf_parent_->get_forbidden()) return *this;
+		for (auto& item : v)
 		{
-			for (auto& item : v)
-			{
-				log_content_ += item.first;
-				log_content_ += " = ";
-				log_content_ += item.second;
-				log_content_ += " ";
-			}
+			log_content_ += item.first;
+			log_content_ += " = ";
+			log_content_ += item.second;
+			log_content_ += " ";
 		}
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const int& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_string(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const unsigned int& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_string(v);
+		return *this;
+	}
 
+	template <>
+	jf_log_t& operator << (const unsigned long& v)
+	{
+		if (jf_parent_->get_forbidden()) return *this;
+		log_content_ += std::to_string(v);
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const long long& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_string(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const unsigned long long& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_string(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t& operator << (const double& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_string(v);
 		return *this;
 	}
@@ -174,21 +168,13 @@ public:
 	template <>
 	jf_log_t& operator << (const jf_log::log_end_symbol& les)
 	{
-		if (!forbidden_)
-		{
-			std::lock_guard<std::recursive_mutex> lock(*mutex_);
-			std::string hdr = i_get_log_head(jf_log::log_type_string[(int)type_]);
-			hdr += log_content_;
-			hdr += "\r\n";
+		if (jf_parent_->get_forbidden()) return *this;
 
-			if (fd_)
-			{
-				fwrite(hdr.c_str(), 1, hdr.length(), fd_);
-				//fflush(fd_);
-			}
-
-			log_content_.clear();
-		}
+		std::string hdr = i_get_log_head(jf_log::log_type_string[(int)type_]);
+		hdr += log_content_;
+		hdr += "\r\n";
+		jf_parent_->write_log(hdr);
+		log_content_.clear();
 
 		return *this;
 	}
@@ -197,15 +183,17 @@ private:
 	std::string i_get_log_head(const std::string& ti);
 
 private:
-	std::string log_content_;
+	std::string		 log_content_;
+	jf_log_parent*	 jf_parent_;
+	jf_log::LOG_TYPE type_;
 };
 //////////////////////////////////////////////////////////////////////////
 
 //	宽字符版本
-struct jf_log_t_w : jf_log_parent
+struct jf_log_t_w
 {
 public:
-	jf_log_t_w(jf_log::LOG_TYPE lt);
+	jf_log_t_w(jf_log::LOG_TYPE lt, jf_log_parent* pa);
 	~jf_log_t_w();
 
 public:
@@ -223,87 +211,69 @@ public:
 	template <>
 	jf_log_t_w& operator << (const wchar_t* v)
 	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		if (!forbidden_) log_content_ += v;
+		if (jf_parent_->get_forbidden()) return *this;
+		log_content_ += v;
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const std::wstring& v)
 	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		if (!forbidden_) log_content_ += v;
+		if (jf_parent_->get_forbidden()) return *this;
+		log_content_ += v;
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const std::map<std::wstring, std::wstring>& v)
 	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		if (!forbidden_)
+		if (jf_parent_->get_forbidden()) return *this;
+		for (auto& item : v)
 		{
-			for (auto& item : v)
-			{
-				log_content_ += item.first;
-				log_content_ += L" = ";
-				log_content_ += item.second;
-				log_content_ += L" ";
-			}
+			log_content_ += item.first;
+			log_content_ += L" = ";
+			log_content_ += item.second;
+			log_content_ += L" ";
 		}
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const int& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_wstring(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const unsigned int& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_wstring(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const long long& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_wstring(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const unsigned long long& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_wstring(v);
-
 		return *this;
 	}
 
 	template <>
 	jf_log_t_w& operator << (const double& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += std::to_wstring(v);
 		return *this;
 	}
@@ -311,9 +281,7 @@ public:
 	template <>
 	jf_log_t_w& operator << (CString& v)
 	{
-		if (forbidden_) return *this;
-
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		if (jf_parent_->get_forbidden()) return *this;
 		log_content_ += v.GetBuffer(v.GetLength());
 		return *this;
 	}
@@ -321,21 +289,13 @@ public:
 	template <>
 	jf_log_t_w& operator << (const jf_log::log_end_symbol& les)
 	{
-		if (!forbidden_)
-		{
-			std::lock_guard<std::recursive_mutex> lock(*mutex_);
-			std::wstring hdr = i_get_log_head(jf_log::log_type_string_w[(int)type_]);
-			hdr += log_content_;
-			hdr += L"\r\n";
+		if (jf_parent_->get_forbidden()) return *this;
 
-			if (fd_)
-			{
-				fwrite(hdr.c_str(), sizeof(wchar_t), hdr.length(), fd_);
-				//fflush(fd_);
-			}
-
-			log_content_.clear();
-		}
+		std::wstring hdr = i_get_log_head(jf_log::log_type_string_w[(int)type_]);
+		hdr += log_content_;
+		hdr += L"\r\n";
+		jf_parent_->write_log<std::wstring, wchar_t>(hdr);
+		log_content_.clear();
 
 		return *this;
 	}
@@ -344,7 +304,9 @@ private:
 	std::wstring i_get_log_head(const std::wstring& ti);
 
 private:
-	std::wstring log_content_;
+	std::wstring	 log_content_;
+	jf_log_parent*	 jf_parent_;
+	jf_log::LOG_TYPE type_;
 };
 //////////////////////////////////////////////////////////////////////////
 
@@ -356,8 +318,8 @@ public:
 	bool uninit();
 
 public:
-	jf_log_t* get_jf_log(jf_log::LOG_TYPE type);
-	jf_log_t_w* get_jf_log_w(jf_log::LOG_TYPE type);
+	jf_log_t get_jf_log(jf_log::LOG_TYPE type);
+	jf_log_t_w get_jf_log_w(jf_log::LOG_TYPE type);
 
 private:
 	void i_open_log_file();
@@ -374,8 +336,7 @@ private:
 private:
 	jf_log::LOG_INIT_INFO			info_;
 	SYSTEMTIME						cur_time_;
-	std::shared_ptr<jf_log_t>		logger_[5];
-	std::shared_ptr<jf_log_t_w>		logger_w_[5];
+	std::shared_ptr<jf_log_parent>	logger_[5];
 	FILE*							cur_fd_;
 	std::recursive_mutex			mutex_;
 	bool							run_;
@@ -386,11 +347,11 @@ private:
 
 //	多字节
 #define LOG(type)	\
-	(*jf_log_manager_t::instance()->get_jf_log(type))
+	jf_log_manager_t::instance()->get_jf_log(type)
 
 //	UNICODE
 #define LOGW(type)	\
-	(*jf_log_manager_t::instance()->get_jf_log_w(type))
+	jf_log_manager_t::instance()->get_jf_log_w(type)
 
 #define LOG_END jf_log::log_end_symbol()
 

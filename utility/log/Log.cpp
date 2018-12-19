@@ -20,14 +20,29 @@ void jf_log_parent::set_forbidden(bool b)
 {
 	forbidden_ = b;
 }
+
+bool jf_log_parent::get_forbidden()
+{
+	return forbidden_;
+}
+
+template <typename T1, typename T2>
+void jf_log_parent::write_log(const T1& cont)
+{
+	if (fd_)
+	{
+		std::lock_guard<std::recursive_mutex> lock(*mutex_);
+		fwrite(cont.c_str(), sizeof(T2), cont.length(), fd_);
+	}
+}
 //////////////////////////////////////////////////////////////////////////
 
-jf_log_t::jf_log_t(jf_log::LOG_TYPE lt) : jf_log_parent(lt) {}
+jf_log_t::jf_log_t(jf_log::LOG_TYPE lt, jf_log_parent* pa) : type_(lt), jf_parent_(pa) {}
 jf_log_t::~jf_log_t() {}
 
 void jf_log_t::write_log(const char* format, ...)
 {
-	if (forbidden_) return;
+	if (jf_parent_->get_forbidden()) return;
 
 	va_list args;
 	va_start(args, format);
@@ -36,13 +51,10 @@ void jf_log_t::write_log(const char* format, ...)
 	char dest[1024] = {};
 	_vsnprintf(dest, sizeof(dest), format, args);
 	hdr += dest;
+	hdr += "\r\n";
 
-	if (fd_)
-	{
-		fwrite(hdr.c_str(), 1, hdr.length(), fd_);
-		fwrite("\r\n", 1, strlen("\r\n"), fd_);
-		//fflush(fd_);
-	}
+	jf_parent_->write_log(hdr);
+
 	va_end(args);
 }
 
@@ -61,12 +73,12 @@ std::string jf_log_t::i_get_log_head(const std::string& ti)
 }
 //////////////////////////////////////////////////////////////////////////
 
-jf_log_t_w::jf_log_t_w(jf_log::LOG_TYPE lt) : jf_log_parent(lt) {}
+jf_log_t_w::jf_log_t_w(jf_log::LOG_TYPE lt, jf_log_parent* pa) : type_(lt), jf_parent_(pa) {}
 jf_log_t_w::~jf_log_t_w() {}
 
 void jf_log_t_w::write_log(const wchar_t* format, ...)
 {
-	if (forbidden_) return;
+	if (jf_parent_->get_forbidden()) return;
 
 	va_list args;
 	va_start(args, format);
@@ -75,13 +87,10 @@ void jf_log_t_w::write_log(const wchar_t* format, ...)
 	wchar_t dest[1024] = {};
 	_vsnwprintf(dest, sizeof(dest), format, args);
 	hdr += dest;
+	hdr += L"\r\n";
 
-	if (fd_)
-	{
-		fwrite(hdr.c_str(), sizeof(wchar_t), hdr.length(), fd_);
-		fwrite(L"\r\n", sizeof(wchar_t), wcslen(L"\r\n"), fd_);
-		//fflush(fd_);
-	}
+	jf_parent_->write_log<std::wstring, wchar_t>(hdr);
+
 	va_end(args);
 }
 
@@ -116,33 +125,21 @@ bool jf_log_manager_t::init(const jf_log::LOG_INIT_INFO& info)
 
 	for (int i = 0; i < LOGGER_COUNT; i++)
 	{
-		if (info_.unicode)
+		logger_[i] = std::make_shared<jf_log_parent>((jf_log::LOG_TYPE)i);
+		logger_[i]->reset_mutex(&mutex_);
+		logger_[i]->reset_fd(cur_fd_);
+		if (std::find(info_.type.begin(), info_.type.end(), jf_log::log_type_string[i])
+			!= info_.type.end())
 		{
-			logger_w_[i] = std::make_shared<jf_log_t_w>((jf_log::LOG_TYPE)i);
-			logger_w_[i]->reset_mutex(&mutex_);
-			logger_w_[i]->reset_fd(cur_fd_);
-			if (std::find(info_.type.begin(), info_.type.end(), jf_log::log_type_string[i])
-				!= info_.type.end())
-			{
-				logger_w_[i]->set_forbidden(false);
-			}
-		}
-		else
-		{
-			logger_[i] = std::make_shared<jf_log_t>((jf_log::LOG_TYPE)i);
-			logger_[i]->reset_mutex(&mutex_);
-			logger_[i]->reset_fd(cur_fd_);
-			if (std::find(info_.type.begin(), info_.type.end(), jf_log::log_type_string[i])
-				!= info_.type.end())
-			{
-				logger_[i]->set_forbidden(false);
-			}
+			logger_[i]->set_forbidden(false);
 		}
 	}
 
 	std::thread trd([this]() {
 		while (run_)
 		{
+			if (cur_fd_) fflush(cur_fd_);
+
 			SYSTEMTIME st;
 			GetLocalTime(&st);
 
@@ -155,19 +152,9 @@ bool jf_log_manager_t::init(const jf_log::LOG_INIT_INFO& info)
 				cur_time_ = st;
 				i_open_log_file();
 
-				if (info_.unicode)
+				for (int i = 0; i < LOGGER_COUNT; i++)
 				{
-					for (int i = 0; i < LOGGER_COUNT; i++)
-					{
-						logger_w_[i]->reset_fd(cur_fd_);
-					}
-				}
-				else
-				{
-					for (int i = 0; i < LOGGER_COUNT; i++)
-					{
-						logger_[i]->reset_fd(cur_fd_);
-					}
+					logger_[i]->reset_fd(cur_fd_);
 				}
 
 				if (info_.expired) i_check_expired();
@@ -188,14 +175,14 @@ bool jf_log_manager_t::uninit()
 	return true;
 }
 
-jf_log_t* jf_log_manager_t::get_jf_log(jf_log::LOG_TYPE type)
+jf_log_t jf_log_manager_t::get_jf_log(jf_log::LOG_TYPE type)
 {
-	return logger_[(int)type].get();
+	return jf_log_t(type, logger_[(int)type].get());
 }
 
-jf_log_t_w* jf_log_manager_t::get_jf_log_w(jf_log::LOG_TYPE type)
+jf_log_t_w jf_log_manager_t::get_jf_log_w(jf_log::LOG_TYPE type)
 {
-	return logger_w_[(int)type].get();
+	return jf_log_t_w(type, logger_[(int)type].get());
 }
 
 void jf_log_manager_t::i_open_log_file()
