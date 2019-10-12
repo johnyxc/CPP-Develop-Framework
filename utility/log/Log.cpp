@@ -285,3 +285,16 @@ time_t jf_log_manager_t::i_file_time_to_time_t(const FILETIME& ft)
 
 jf_log_manager_t::jf_log_manager_t() : run_(true) {}
 jf_log_manager_t::~jf_log_manager_t() {}
+
+
+/*
+@param _folder			日志保存的目录
+@param _log_name		日志文件名
+*/
+bool Init_Log(const std::string& _folder, const std::string& _log_name)
+{
+	std::vector<std::string> log_type = { "DEBUG", "INFO", "WARNING", "ERROR" };
+	jf_log::LOG_INIT_INFO init_info = { _log_name, _folder, log_type, 7, false };
+	auto logger = jf_log_manager_t::instance();
+	return logger->init(init_info);
+}

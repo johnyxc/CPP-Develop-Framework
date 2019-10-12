@@ -15,7 +15,10 @@ namespace bas
 		{
 		public:
 			listener_helper_t(standard_header* hdr) : std_hdr_(hdr) {}
-			~listener_helper_t() {}
+			~listener_helper_t() 
+			{
+				LOG(LT_DEBUG) << "Deconstructor In listener_helper_t" << LOG_END;
+			}
 
 		public:
 			void set_strand(std::shared_ptr<strand_t> strand)

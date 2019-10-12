@@ -343,6 +343,15 @@ private:
 };
 //////////////////////////////////////////////////////////////////////////
 
+/*
+	@param _folder			日志保存的目录
+	@param _log_name		日志文件名
+*/
+bool Init_Log(const std::string& _folder, const std::string& _log_name);
+
+/*
+	@param type			LT_DEBUG, LT_INFO, LT_WARNING, LT_ERROR
+*/
 //	type 参见 LOG_TYPE
 
 //	多字节
