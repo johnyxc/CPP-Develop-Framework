@@ -1,0 +1,15 @@
+/*
+*	云版本MQ推送消息定义
+*	所有命令分 _request、_response 后缀
+*	采用32位整型存储命令号，各命令类型分割方式见注释
+*	第32位处理：0-请求 1-回应
+*	如	0000 0001 表示 jf_msg_maintain_mode_request
+*		8000 0001 表示 jf_msg_maintain_mode_response
+*/
+
+/*MQ命令 占用1-31位*/
+[1][center_mq_command][1-31]
+jf_msg_center_config_change;	/*配置修改通知*/
+jf_msg_center_mobile_payment;	/*移动充值通知*/
+jf_msg_center_money_change;		/*金额变化通知*/
+jf_msg_center_card_info;		/*会员信息变更通知*/
