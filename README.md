@@ -1,4 +1,4 @@
-# CPP-Develope-Framework
+# CPP Develop Framework
 
 This C++ Develop Framework is compatible with C++11, it has been tested on our medium-sized project.
 
