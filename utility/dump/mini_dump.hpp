@@ -86,7 +86,7 @@ namespace win32
 
 			void DisableSetUnhandledExceptionFilter()
 			{
-				void* addr = (void*)GetProcAddress(LoadLibrary(L"kernel32.dll"),
+				void* addr = (void*)GetProcAddress(LoadLibraryW(L"kernel32.dll"),
 					"SetUnhandledExceptionFilter");
 
 				if (addr)

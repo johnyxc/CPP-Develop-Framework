@@ -1,14 +1,19 @@
 #ifndef __COMMON_HPP_2017_02_06__
 #define __COMMON_HPP_2017_02_06__
-#include <algorithm>
-#include <vector>
 #include <map>
-#include <chrono>
-#include <stdint.h>
+#include <vector>
 #include <string>
+#include <algorithm>
+#include <chrono>
+#include <atomic>
 #include <functional>
+#include <stdint.h>
 #include <setupapi.h>
 #include <devguid.h>
+#include <IPTypes.h>
+#include <IPHlpApi.h>
+#include <gdiplus.h>
+#include <comdef.h>
 
 using params_t = std::map<std::string, std::string>;
 using multi_params_t = std::vector<params_t>;
@@ -325,23 +330,6 @@ static std::string url_decode(const std::string &uri)
 	return ret;
 }
 
-static BOOL system_restart()
-{
-	HANDLE				hToken;
-	TOKEN_PRIVILEGES	tkp;
-	OSVERSIONINFO		osvi;
-
-	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-	if (GetVersionEx(&osvi) == 0) return FALSE;
-	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) return FALSE;
-	LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME, &tkp.Privileges[0].Luid);
-	tkp.PrivilegeCount = 1;
-	tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-	AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, (PTOKEN_PRIVILEGES)NULL, 0);
-	ExitWindowsEx(EWX_REBOOT | EWX_FORCEIFHUNG, 0);
-	return TRUE;
-}
-
 template < typename ValueType, typename CharT >
 static void split(std::vector<ValueType> &seq, const std::basic_string<CharT> &str, CharT separator)
 {
@@ -416,5 +404,53 @@ static LPCTSTR camera_name(LPTSTR szDevName, DWORD dwSize)
 		SetupDiDestroyDeviceInfoList(hDevInfo);
 	return szDevName;
 }
+
+struct run_once_t
+{
+	run_once_t(std::function<void()> fo) : fo_(fo), lock_() {}
+	void operator () () {
+		if (++lock_ == 1)
+		{
+			if (fo_) fo_();
+		}
+		else
+		{
+			lock_ = 2;
+		}
+	}
+
+	std::function<void()> fo_;
+	std::atomic_long lock_;
+};
+
+/*
+*	处于同一源文件同一代码行的 RUN_ONCE 持有的函数对象只会执行一次
+*	类似如下代码只会打印出 Thread ID : 0
+*	for (int i = 0; i < 10; i++)
+*	{
+*		std::thread([i]() {
+*			RUN_ONCE([i]() {
+*				printf("Thread ID : %d\n", i);
+*			})();
+*		}).detach();
+*	}
+*
+*	如下代码会打印出 Hello World!
+*	for (int i = 0; i < 10; i++)
+*	{
+*		RUN_ONCE([]() {
+*			printf("Hello ");
+*		})();
+*	}
+*
+*	RUN_ONCE([]() {
+*		printf("World!");
+*	})();
+*/
+#define RUN_ONCE(fo) \
+	{ \
+		static run_once_t r(fo); \
+		r(); \
+	}
 
 #endif

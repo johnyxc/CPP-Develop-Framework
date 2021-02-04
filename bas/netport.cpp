@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include <bas/netport.h>
 #include <bas/strand.hpp>
 #include <bas/memory.hpp>
@@ -189,11 +188,6 @@ private :
 				standard_header* sh = std_hdr_->clone(ci_.cmd_hdr, std_hdr_->get_header_len());
 				if (!sh)
 				{
-					//assert(sh);
-					//flag_ = 0;
-					//ci_.cmd_body = 0;
-					//ci_.body_len = 0;
-					//i_on_recv_strand(0, 0);
 					i_on_error(7);
 					break;
 				}
@@ -316,7 +310,7 @@ private :
 		if (recv_cb_) recv_cb_ = {};
 		if (send_cb_) send_cb_ = {};
 		if (err_cb_)  err_cb_  = {};
-		//	不加检测,从而在程序停止时产生dump文件分析状态
+		//	不加检测，从而在程序停止时产生dump文件分析状态
 		if (sock_->valid())
 		{
 			LOG(LT_DEBUG) << "Netport Close Socket : " << reinterpret_cast<int>(sock_.get()) << LOG_END;

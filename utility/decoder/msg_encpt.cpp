@@ -1,15 +1,16 @@
 #include "msg_encpt.h"
-
 #include "openssl/rc4.h"
 
-#ifdef _M_IX86  
-#pragma comment(lib, "openssl/ssleay32.lib") 
-#pragma comment(lib, "openssl/libeay32.lib")  
+#pragma comment(lib, "Crypt32.lib")
+
+#ifdef _M_IX86
+#pragma comment(lib, "openssl/libssl.lib") 
+#pragma comment(lib, "openssl/libcrypto.lib") 
 #endif 
 
-#ifdef _M_X64  
-#pragma comment(lib, "openssl/libeay32_64.lib")  
-#pragma comment(lib, "openssl/ssleay32_64.lib") 
+#ifdef _M_X64
+#pragma comment(lib, "openssl/libssl64.lib") 
+#pragma comment(lib, "openssl/libcrypto64.lib")  
 #endif 
 
 static string jf_msg_key = "*#@yunjifei@#*";

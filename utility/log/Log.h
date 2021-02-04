@@ -61,8 +61,8 @@ public:
 	void reset_fd(FILE* fd);
 	void set_forbidden(bool b);
 	bool get_forbidden();
-	template <typename T1, typename T2 = char>
-	void write_log(const T1& cont);
+	template <typename T>
+	void write_log(const T& cont);
 
 private:
 	FILE*					fd_;
@@ -294,7 +294,7 @@ public:
 		std::wstring hdr = i_get_log_head(jf_log::log_type_string_w[(int)type_]);
 		hdr += log_content_;
 		hdr += L"\r\n";
-		jf_parent_->write_log<std::wstring, wchar_t>(hdr);
+		jf_parent_->write_log(hdr);
 		log_content_.clear();
 
 		return *this;

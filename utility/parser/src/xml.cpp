@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include <bas/memory.hpp>
 #include <utility/parser/3rd/inc/xpath_static.h>
 #include <utility/parser/src/xml.h>

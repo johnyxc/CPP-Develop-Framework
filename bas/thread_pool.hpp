@@ -159,14 +159,11 @@ namespace bas
 						SYSTEMTIME st = {};
 						GetLocalTime(&st);
 						char msg[64] = {};
-						sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d ", st.wYear, st.wMonth, st.wDay,
+						sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d Asio Exception\r\n", st.wYear, st.wMonth, st.wDay,
 							st.wHour, st.wMinute, st.wSecond);
-						strcat(msg, "Asio Exception\r\n");
 						fwrite(msg, 1, strlen(msg), file);
 						fclose(file);
 					}
-					//bool asio_flag = false;
-					//assert(asio_flag);
 				}
 			}
 
@@ -196,39 +193,31 @@ namespace bas
 						continue;
 					}
 
-					try
-					{
-						ep->fo();
-					}
-					catch (std::exception& e)
-					{
+					auto tmp_log_fo = [](const char* info) {
 						FILE* file = fopen("C:\\ThreadPoolExcpt.txt", "ab");
 						if (file)
 						{
 							SYSTEMTIME st = {};
 							GetLocalTime(&st);
 							char msg[1024] = {};
-							sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d %s", st.wYear, st.wMonth, st.wDay,
-								st.wHour, st.wMinute, st.wSecond, e.what());
+							sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d %s\r\n", st.wYear, st.wMonth, st.wDay,
+								st.wHour, st.wMinute, st.wSecond, info);
 							fwrite(msg, 1, strlen(msg), file);
 							fclose(file);
 						}
+					};
+
+					try
+					{
+						ep->fo();
+					}
+					catch (std::exception& e)
+					{
+						tmp_log_fo(e.what());
 					}
 					catch (...)
 					{
-						FILE* file = fopen("C:\\ThreadPoolExcpt.txt", "ab");
-						if (file)
-						{
-							SYSTEMTIME st = {};
-							GetLocalTime(&st);
-							char msg[64] = {};
-							sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d Thread Pool Exception\r\n", st.wYear, st.wMonth, st.wDay,
-								st.wHour, st.wMinute, st.wSecond);
-							fwrite(msg, 1, strlen(msg), file);
-							fclose(file);
-						}
-						//bool thread_pool_flag = false;
-						//assert(thread_pool_flag);
+						tmp_log_fo("Thread Pool Exception");
 					}
 
 					ep->strand->set_using(false);

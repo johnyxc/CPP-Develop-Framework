@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "Log.h"
 #include <io.h>
 #include <filesystem>
@@ -26,13 +25,14 @@ bool jf_log_parent::get_forbidden()
 	return forbidden_;
 }
 
-template <typename T1, typename T2>
-void jf_log_parent::write_log(const T1& cont)
+template <typename T>
+void jf_log_parent::write_log(const T& cont)
 {
+	typedef typename T::value_type VT;
 	if (fd_)
 	{
 		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		fwrite(cont.c_str(), sizeof(T2), cont.length(), fd_);
+		fwrite(cont.c_str(), sizeof(VT), cont.length(), fd_);
 	}
 }
 //////////////////////////////////////////////////////////////////////////
@@ -49,7 +49,7 @@ void jf_log_t::write_log(const char* format, ...)
 
 	std::string hdr = i_get_log_head(jf_log::log_type_string[(int)type_]);
 	char dest[1024] = {};
-	_vsnprintf(dest, sizeof(dest), format, args);
+	_vsnprintf(dest, sizeof(dest) - 1, format, args);
 	hdr += dest;
 	hdr += "\r\n";
 
@@ -89,7 +89,7 @@ void jf_log_t_w::write_log(const wchar_t* format, ...)
 	hdr += dest;
 	hdr += L"\r\n";
 
-	jf_parent_->write_log<std::wstring, wchar_t>(hdr);
+	jf_parent_->write_log(hdr);
 
 	va_end(args);
 }

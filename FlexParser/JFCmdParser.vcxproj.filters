@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Flex\lex.flex.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Flex\parser.tab.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Parser\parser.cpp">
+      <Filter>Parser</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Flex">
+      <UniqueIdentifier>{ec1f30c8-5202-4629-a88d-1ac41875ce13}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header">
+      <UniqueIdentifier>{17bd3b04-978e-4019-b7a1-19ce021dffcd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{79c7408e-32d5-45b5-9e5b-7194f704cc6b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Parser">
+      <UniqueIdentifier>{e2b739e0-9661-4c36-bc11-34f1c977b770}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Flex Include="Flex\lex.l">
+      <Filter>Flex</Filter>
+    </Flex>
+  </ItemGroup>
+  <ItemGroup>
+    <Bison Include="Flex\parser.y">
+      <Filter>Flex</Filter>
+    </Bison>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Flex\parser.tab.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Parser\parser.h">
+      <Filter>Parser</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

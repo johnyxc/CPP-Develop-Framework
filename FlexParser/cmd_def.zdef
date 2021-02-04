@@ -1,0 +1,35 @@
+/*
+*	JF Command Definition
+*	Exsample	0000 0001 means jf_msg_maintain_mode_request
+*				8000 0001 means jf_msg_maintain_mode_response
+*/
+
+/*Common Command, Takes 1-7 Bit*/
+[common_command][1-7]
+jf_msg_maintain_mode;			////	hello
+jf_msg_power_cut_mode;
+jf_msg_get_netbar_info;			/* Chengdu */
+jf_msg_time_sync;
+jf_msg_init_module;
+jf_msg_uninit_module;
+jf_msg_customer_online ; jf_msg_x;	jf_msg_xx;	jf_msg_xxx;
+jf_msg_customer_offline;
+jf_msg_customer_change;
+jf_msg_reserve_fixed_rate;
+jf_msg_svc_register;
+jf_msg_heartbeat;
+jf_msg_cancel_reserved;
+jf_msg_check_legal;
+
+
+/*General Cashier Command, Takes 8-9 Bit*/
+[general_cashier_command][8-9]
+jf_msg_cashier_status;
+jf_msg_get_maintain_pwd;
+jf_msg_delete_cashier_desk;		//	world
+jf_msg_delete_computer;
+jf_msg_modify_cashier_desk;
+jf_msg_set_notice_content;
+jf_msg_gene_add_computer;
+jf_msg_gene_add_cashier_desk;
+jf_msg_gene_modify_computer;
