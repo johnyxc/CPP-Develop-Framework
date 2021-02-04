@@ -1,6 +1,6 @@
 # CPP-Develope-Framework
 
-This C++ Develope Framework is compatible with C++11, it has been tested on our medium-sized project.
+This C++ Develop Framework is compatible with C++11, it has been tested on our medium-sized project.
 
 * bas</br>
 bas module provide base functions, such as thread pool, network, memory pool, etc.
