@@ -1,6 +1,7 @@
 // DES.cpp: implementation of the CDES class.
 //
 //////////////////////////////////////////////////////////////////////
+#include "stdafx.h"
 #include "DES.h"
 #include "memory.h"
 

@@ -138,10 +138,11 @@ public :
 private :
 	void i_send_message_strand(cmd_info* ci)
 	{
-		if (!sock_ || !sock_->valid())
+		if (!sock_->valid())
 		{
 			if (ci)
 			{
+				if (ci->cmd_hdr) mem_free((void*)ci->cmd_hdr);
 				if (ci->cmd_body) mem_free((void*)ci->cmd_body);
 				mem_free((void*)ci);
 			}
@@ -200,17 +201,15 @@ private :
 					ci_.cmd_body = (char*)mem_alloc(body_len);
 					ci_.body_len = body_len;
 
-					if (sock_ && sock_->valid())
-					{
-						int recv_size = ci_.body_len;
-						if (recv_size > TP_MAX_RECV_SIZE) {
-							flag_ = 2;
-							recv_size = TP_MAX_RECV_SIZE;
-						} else {
-							flag_ = 0;
-						}
-						sock_->async_recv(ci_.cmd_body, recv_size);
+					int recv_size = ci_.body_len;
+					if (recv_size > TP_MAX_RECV_SIZE) {
+						flag_ = 2;
+						recv_size = TP_MAX_RECV_SIZE;
+					} else {
+						flag_ = 0;
 					}
+
+					sock_->async_recv(ci_.cmd_body, recv_size);
 				}
 				else
 				{

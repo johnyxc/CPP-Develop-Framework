@@ -1,5 +1,5 @@
-#ifndef __THREAD_POOL_HPP_2016_09_19__
-#define __THREAD_POOL_HPP_2016_09_19__
+#ifndef __THREAD_POOL_HPP_2021_06_04__
+#define __THREAD_POOL_HPP_2021_06_04__
 #include <asio/asio.hpp>
 #include <bas/osfunc.hpp>
 #include <bas/strand.hpp>
@@ -9,79 +9,126 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <iostream>
 #include <utility/log/Log.h>
 using namespace jf_log;
-#define	MAX_THREAD_COUNT	4
+#define	MAX_THREAD_COUNT	2
 #define INNER_THREAD_COUNT	2
-//static int g_core_count = std::thread::hardware_concurrency();
 
 namespace bas
 {
 	namespace detail
 	{
+		using standard_call = std::function<void()>;
+		enum { MAX_TASK_SIZE = 1000000 };
+
+		struct inner_thread_t
+		{
+			inner_thread_t() : alive_(true)
+			{
+				evt_ = get_event_hdl();
+			}
+
+			void start()
+			{
+				work_trd_ = std::make_unique<std::thread>([this]() {
+					while (alive_)
+					{
+						standard_call fo;
+						auto list_size = 0;
+
+						fo_mtx_.lock();
+						if (!fo_list_.empty())
+						{
+							fo = fo_list_.front();
+							fo_list_.pop_front();
+							list_size = fo_list_.size();
+						}
+						fo_mtx_.unlock();
+
+						if (fo)
+						{
+							try
+							{
+								fo();
+							} catch (std::exception& e) {
+								std::cout<< "thread_pool exception : " << e.what() << std::endl;
+							} catch (...) {
+								std::cout << "thread_pool exception" << std::endl;
+							}
+						}
+
+						if (!list_size)
+						{
+							event_wait(evt_);
+						}
+					}
+				});
+			}
+
+			void stop()
+			{
+				alive_ = false;
+				work_trd_->join();
+			}
+
+			void post(standard_call fo)
+			{
+				fo_mtx_.lock();
+				fo_list_.push_back(fo);
+				fo_mtx_.unlock();
+				set_event(evt_);
+			}
+
+			bool is_busy()
+			{
+				return get_task_size() > MAX_TASK_SIZE;
+			}
+
+			size_t get_task_size()
+			{
+				auto list_size = 0;
+
+				fo_mtx_.lock();
+				list_size = fo_list_.size();
+				fo_mtx_.unlock();
+
+				return list_size;
+			}
+
+			std::list<standard_call>		fo_list_;
+			std::unique_ptr<std::thread>	work_trd_;
+			std::mutex						fo_mtx_;
+			HEVENT							evt_;
+			bool							alive_;
+		};
+
 		struct thread_pool_t
 		{
-			using standard_call = std::function<void()>;
-
-			struct pt_param
-			{
-				pt_param() : alive(false) {}
-				std::unique_ptr<std::thread> trd;
-				HEVENT evt;
-				bool alive;
-			};
-
-			//	投递事件结构
-			struct exe_param
-			{
-				std::function<void ()> fo;
-				std::shared_ptr<strand_t> strand;
-				long long time;
-			};
-
-			struct exe_cmp
-			{
-				bool operator () (const exe_param* a, const exe_param* b) { return a->time > b->time; }
-			};
-
 		public :
-			thread_pool_t() : tc_(), io_(MAX_THREAD_COUNT)
-			{
-				evt_			= get_event_hdl(false, false);
-				list_mutex_		= get_mutex();
-				own_list_mutex_ = get_mutex();
-			}
+			thread_pool_t() : worker_count_()
+			{}
 			~thread_pool_t()
-			{
-				release_event_hdl(evt_);
-				release_mutex(list_mutex_);
-				release_mutex(own_list_mutex_);
-			}
+			{}
 
 		public :
 			void start()
 			{
-				//	开启 asio 线程池
-				tc_ = MAX_THREAD_COUNT;
+				worker_count_ = std::thread::hardware_concurrency();
 				worker_ = std::make_unique<asio::io_service::work>(io_);
-				for (int i = 0; i < tc_; i++)
+
+				for (int i = 0; i < worker_count_; i++)
 				{
-					threads_[i] = std::make_unique<std::thread>(
-						std::bind(&thread_pool_t::i_on_thread, this)
-						);
+					auto trd = std::make_shared<std::thread>(std::bind(&thread_pool_t::i_on_thread, this));
+					SetThreadAffinityMask(trd->native_handle(), 1 << i);
+					threads_.emplace_back(trd);
 				}
 
-				//	开启内部线程池
-				build_thread_alive_ = true;
-				build_thread_ = std::make_unique<std::thread>(
-					std::bind(&thread_pool_t::i_on_thread_build, this));
-
-				for (int i = 0; i < INNER_THREAD_COUNT; i++)
+				for (int i = 0; i < worker_count_; i++)
 				{
-					post_thread_[i].evt = get_event_hdl(false, false);
-					post_thread_[i].alive = true;
-					post_thread_[i].trd = std::make_unique<std::thread>(
-						std::bind(&thread_pool_t::i_on_thread_get, this, &post_thread_[i]));
+					auto worker = std::make_shared<inner_thread_t>();
+					workers_.emplace_back(worker);
+					worker->start();
 				}
 			}
 
@@ -90,59 +137,40 @@ namespace bas
 				worker_.reset();
 				io_.stop();
 
-				build_thread_alive_ = false;
-				set_event(evt_);
-
-				for (int i = 0; i < tc_; i++)
+				for (auto& item : workers_)
 				{
-					threads_[i]->join();
+					item->stop();
 				}
-
-				for (int i = 0; i < INNER_THREAD_COUNT; i++)
-				{
-					post_thread_[i].alive = false;
-					set_event(post_thread_[i].evt);
-					post_thread_[i].trd->join();
-				}
-
-				build_thread_->join();
+				workers_.clear();
 			}
-
-			asio::io_service& get_service()
-			{
-				return io_;
-			}
-
-			//	暂不提供
-			void post(standard_call fo) {}
 
 			//	通过此函数投递的函数对象需要提供 strand 参数
-			//	同一个 strand 下的函数对象保证串行独占执行
-			void post_call(standard_call fo, std::shared_ptr<strand_t> strand)
+			//	同一个 strand 下的函数对象保证串行执行
+			bool post_call(standard_call fo, std::shared_ptr<strand_t> strand)
 			{
-				if (!strand) return;
+				auto post_ok = true;
 
-				exe_param* ep = new exe_param;
-				ep->fo = fo;
-				ep->strand = strand;
-				ep->time = GetTickCount();
-
-				lock(own_list_mutex_);
-				auto iter = own_event_list_.find(strand.get());
-				if (iter == own_event_list_.end())
+				mtx_.lock();
+				auto iter = strand_proc_list_.find(strand.get());
+				if (iter != strand_proc_list_.end())
 				{
-					std::list<exe_param*> exe_list;
-					exe_list.push_back(ep);
-					own_event_list_.insert(std::pair<strand_t*, std::list<exe_param*>>(strand.get(), exe_list));
+					if (iter->second->is_busy()) {
+						post_ok = false;
+					} else {
+						iter->second->post(fo);
+					}
 				}
 				else
 				{
-					iter->second.push_back(ep);
+					strand_proc_list_[strand.get()] = i_get_appropriate_worker();
+					strand_proc_list_[strand.get()]->post(fo);
 				}
-				unlock(own_list_mutex_);
+				mtx_.unlock();
 
-				set_event(evt_);
+				return post_ok;
 			}
+
+			asio::io_service& get_service() { return io_; }
 
 		private :
 			void i_on_thread()
@@ -150,139 +178,25 @@ namespace bas
 				try
 				{
 					io_.run();
-				}
-				catch (...)
-				{
-					FILE* file = fopen("C:\\AsioExcpt.txt", "ab");
-					if (file)
-					{
-						SYSTEMTIME st = {};
-						GetLocalTime(&st);
-						char msg[64] = {};
-						sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d Asio Exception\r\n", st.wYear, st.wMonth, st.wDay,
-							st.wHour, st.wMinute, st.wSecond);
-						fwrite(msg, 1, strlen(msg), file);
-						fclose(file);
-					}
-				}
+				} catch (...) {}
 			}
 
-			//	函数对象执行线程
-			//	可能会有多个线程，从同一个优先队列
-			//	中取出一个对象执行，以对象被创建
-			//	的时间计算优先级，创建时间早的对象
-			//	拥有较高优先级，会优先被选出执行
-			void i_on_thread_get(pt_param* pt)
+			std::shared_ptr<inner_thread_t> i_get_appropriate_worker()
 			{
-				if (!pt) return;
-				while (pt->alive)
+				unsigned long long smallest = UINT64_MAX;
+				std::shared_ptr<inner_thread_t> worker;
+
+				for (auto i = 0; i < worker_count_; i++)
 				{
-					exe_param* ep;
-
-					lock(list_mutex_);
-					if (event_list_.size())
+					auto task_size = workers_[i]->get_task_size();
+					if (task_size < smallest)
 					{
-						ep = event_list_.top();
-						event_list_.pop();
-						unlock(list_mutex_);
-					}
-					else
-					{
-						unlock(list_mutex_);
-						event_wait(pt->evt);
-						continue;
-					}
-
-					auto tmp_log_fo = [](const char* info) {
-						FILE* file = fopen("C:\\ThreadPoolExcpt.txt", "ab");
-						if (file)
-						{
-							SYSTEMTIME st = {};
-							GetLocalTime(&st);
-							char msg[1024] = {};
-							sprintf(msg, "%04d-%02d-%02d %02d:%02d:%02d %s\r\n", st.wYear, st.wMonth, st.wDay,
-								st.wHour, st.wMinute, st.wSecond, info);
-							fwrite(msg, 1, strlen(msg), file);
-							fclose(file);
-						}
-					};
-
-					try
-					{
-						ep->fo();
-					}
-					catch (std::exception& e)
-					{
-						tmp_log_fo(e.what());
-					}
-					catch (...)
-					{
-						tmp_log_fo("Thread Pool Exception");
-					}
-
-					ep->strand->set_using(false);
-					delete ep;
-				}
-			}
-
-			//	单独一个线程用于建立优先队列
-			//	属于同一个 strand 的函数对象总是
-			//	互斥的，不会同时出现在优先队列中
-			void i_on_thread_build()
-			{
-				auto iter = own_event_list_.begin();
-
-				while (build_thread_alive_)
-				{
-					lock(own_list_mutex_);
-					for (iter = own_event_list_.begin(); iter != own_event_list_.end(); )
-					{
-						strand_t* strd = iter->first;
-						if (!strd->is_using())
-						{
-							exe_param* ep;
-							strd->set_using(true);
-
-							if (iter->second.size())
-							{
-								ep = iter->second.front();
-								iter->second.pop_front();
-								if (iter->second.empty()) {
-									own_event_list_.erase(iter++);
-								} else {
-									++iter;
-								}
-							}
-							else
-							{
-								strd->set_using(false);
-								own_event_list_.erase(iter++);
-								unlock(own_list_mutex_);
-								continue;
-							}
-
-							lock(list_mutex_);
-							event_list_.push(ep);
-							unlock(list_mutex_);
-							for (int i = 0; i < INNER_THREAD_COUNT; i++)
-							{
-								set_event(post_thread_[i].evt);
-							}
-						}
-						else
-						{
-							++iter;
-						}
-					}
-
-					unlock(own_list_mutex_);
-
-					if (own_event_list_.empty())
-					{
-						event_wait(evt_);
-						continue;
+						smallest = task_size;
+						worker = workers_[i];
 					}
 				}
+
+				return worker;
 			}
 
 		public :
@@ -293,20 +207,15 @@ namespace bas
 			}
 
 		private :
-			int											tc_;
-			asio::io_service							io_;
-			std::unique_ptr<asio::io_service::work>		worker_;
-			std::unique_ptr<std::thread>				threads_[MAX_THREAD_COUNT];
+			int													 worker_count_;
 
-			int											count_;
-			HEVENT										evt_;
-			HMUTEX										list_mutex_;
-			HMUTEX										own_list_mutex_;
-			pt_param									post_thread_[INNER_THREAD_COUNT];
-			std::unique_ptr<std::thread>				build_thread_;
-			bool										build_thread_alive_;
-			std::map<strand_t*, std::list<exe_param*>>	own_event_list_;
-			std::priority_queue<exe_param*, std::vector<exe_param*>, exe_cmp> event_list_;
+			asio::io_service									 io_;
+			std::unique_ptr<asio::io_service::work>				 worker_;
+			std::vector<std::shared_ptr<std::thread>>			 threads_;
+
+			std::vector<std::shared_ptr<inner_thread_t>>		 workers_;
+			std::map<strand_t*, std::shared_ptr<inner_thread_t>> strand_proc_list_;
+			std::mutex											 mtx_;
 		};
 	}
 

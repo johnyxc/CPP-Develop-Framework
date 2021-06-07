@@ -1,5 +1,5 @@
-#ifndef __STRAND_HPP_2016_09_22__
-#define __STRAND_HPP_2016_09_22__
+#ifndef __STRAND_HPP_2021_06_04__
+#define __STRAND_HPP_2021_06_04__
 #include <functional>
 #include <bas/osfunc.hpp>
 
@@ -10,7 +10,7 @@ namespace bas
 		struct strand_t
 		{
 		public :
-			strand_t() : mutex_(), in_use_(false) { mutex_ = get_mutex(); }
+			strand_t() : mutex_(), in_use_(0) { mutex_ = get_mutex(); }
 			~strand_t() { release_mutex(mutex_); }
 
 		public :
@@ -31,12 +31,15 @@ namespace bas
 
 			void set_using(bool b)
 			{
-				in_use_ = b;
+				long in_use = b ? 1 : 0;
+				atom_exchange(&in_use_, in_use);
 			}
 
 			bool is_using()
 			{
-				return in_use_;
+				auto in_use = false;
+				if (InterlockedCompareExchange(&in_use_, 1, 0)) in_use = true;
+				return in_use;
 			}
 
 			void leave_section()
@@ -45,8 +48,8 @@ namespace bas
 			}
 
 		private :
-			HMUTEX mutex_;
-			bool in_use_;
+			HMUTEX	mutex_;
+			long	in_use_;
 		};
 	}
 }

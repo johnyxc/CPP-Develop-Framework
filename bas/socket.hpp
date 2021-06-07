@@ -305,7 +305,12 @@ namespace bas
 						if (err) {
 							error_occur(err.value());
 						} else {
-							if (recv_cb_) recv_cb_(bt, 0);
+							decltype(recv_cb_) cb;
+							{
+								std::lock_guard<std::recursive_mutex> lock(mutex_);
+								cb = recv_cb_;
+							}
+							if (cb) cb(bt, 0);
 						}
 					}
 				);
@@ -322,6 +327,7 @@ namespace bas
 				tcp_sock_->async_read_some(asio::buffer(buf, len),
 					[shared_this, this, cb](const std::error_code& err, std::size_t bt) {
 						if (err) {
+							if (cb) cb(0, err.value());
 							error_occur(err.value());
 						} else {
 							if (cb) cb(bt, 0);
@@ -338,15 +344,34 @@ namespace bas
 				if (!buf || !len || !is_open_) return false;
 
 				auto shared_this = shared_from_this();
+				asio::async_write(*tcp_sock_.get(), asio::buffer(buf, len),
+					[shared_this, this](const std::error_code& err, std::size_t bt) {
+					if (err) {
+						error_occur(err.value());
+					} else {
+						decltype(send_cb_) cb;
+						{
+							std::lock_guard<std::recursive_mutex> lock(mutex_);
+							cb = send_cb_;
+						}
+						if (cb) cb(bt, 0);
+					}
+				});
+				/*
 				tcp_sock_->async_send(asio::buffer(buf, len),
 					[shared_this, this](const std::error_code& err, std::size_t bt) {
 					if (err) {
 						error_occur(err.value());
 					} else {
-						if (send_cb_) send_cb_(bt, 0);
+						decltype(send_cb_) cb;
+						{
+							std::lock_guard<std::recursive_mutex> lock(mutex_);
+							cb = send_cb_;
+						}
+						if (cb) cb(bt, 0);
 					}
 				});
-
+				*/
 				return true;
 			}
 
@@ -456,7 +481,7 @@ namespace bas
 								std::make_shared<socket_t>(sock);
 
 							shared_sock->set_no_delay();
-							shared_sock->set_buffer_size(10 * 1024);
+							shared_sock->set_buffer_size(500 * 1024);
 							shared_sock->set_keepalive();
 
 							cb(shared_sock, 0);
@@ -523,7 +548,7 @@ namespace bas
 					[shared_this, this, sock] (const std::error_code &err) {
 					if (!err) {
 						sock->set_no_delay();
-						sock->set_buffer_size(10 * 1024);
+						sock->set_buffer_size(500 * 1024);
 						sock->set_keepalive();
 						acpt_cb_(sock, 0);
 					}
