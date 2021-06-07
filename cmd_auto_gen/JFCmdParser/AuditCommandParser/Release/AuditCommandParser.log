@@ -1,6 +1,0 @@
-﻿  main.cpp
-C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V120\Microsoft.CppBuild.targets(1193,5): warning MSB8012: TargetPath(E:\workspace\Billing\branch\Common\Tools\命令生成\JFCmdParser\Release\AuditCommandParser.exe) does not match the Linker's OutputFile property value (E:\workspace\Billing\branch\Common\Tools\命令生成\JFCmdParser\Release\AuditCommandParser\JFCmdParser.exe). This may cause your project to build incorrectly. To correct this, please make sure that $(OutDir), $(TargetName) and $(TargetExt) property values match the value specified in %(Link.OutputFile).
-C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V120\Microsoft.CppBuild.targets(1195,5): warning MSB8012: TargetName(AuditCommandParser) does not match the Linker's OutputFile property value (JFCmdParser). This may cause your project to build incorrectly. To correct this, please make sure that $(OutDir), $(TargetName) and $(TargetExt) property values match the value specified in %(Link.OutputFile).
-  正在生成代码
-  已完成代码的生成
-  AuditCommandParser.vcxproj -> E:\workspace\Billing\branch\Common\Tools\命令生成\JFCmdParser\Release\AuditCommandParser.exe
