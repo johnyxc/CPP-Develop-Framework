@@ -1,6 +1,7 @@
 #include "parser.h"
 #include <time.h>
 #include <iostream>
+#include <windows.h>
 
 static void str2upper(std::string& str)
 {
@@ -130,7 +131,7 @@ void cpp_output_t::i_output(node_t* node)
 								exit(0);
 							}
 
-							std::string param_type = "static const int ";
+							std::string param_type = "static const unsigned int ";
 
 							{	//	Request
 								fin_line += param_type + pnode->data + "_request = ";
@@ -149,9 +150,28 @@ void cpp_output_t::i_output(node_t* node)
 						}
 					}
 					else if (pnode->data_type == DT_CMT)
-					{	//	注释添加在 Response 后
+					{	//	注释添加在 Response 后，utf8 转 gb2312
+
+						auto trans = [](const std::string& utf8) -> std::string {
+							auto len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, NULL, 0);
+							auto* wstr = new wchar_t[len + 1];
+							memset(wstr, 0, len + 1);
+
+							MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wstr, len);
+							len = WideCharToMultiByte(CP_ACP, 0, wstr, -1, NULL, 0, NULL, NULL);
+							auto* str = new char[len + 1];
+							memset(str, 0, len + 1);
+
+							WideCharToMultiByte(CP_ACP, 0, wstr, -1, str, len, NULL, NULL);
+							delete[] wstr;
+							std::string res = str;
+							delete[] str;
+							
+							return std::move(res);
+						};
+
 						fin_line += "\t";
-						fin_line += pnode->data;
+						fin_line += trans(pnode->data);
 					}
 				}
 
@@ -293,19 +313,21 @@ void go_output_t::i_output(node_t* node)
 							}
 
 							{	//	Request
-								fin_line += pnode->data + "_request = ";
+								pnode->data[0] -= 32;	//	go 定义变量首字母大写
+
+								fin_line += pnode->data + "_request uint32 = ";
 								char hex[15] = {};
 								sprintf(hex, "0x%x", cmd_id);
 								fin_line += std::string(hex) + ";";
 								fin_line += "\r\n";
 							}
 
-								{	//	Response
-									fin_line += pnode->data + "_response = ";
-									char hex[15] = {};
-									sprintf(hex, "0x%x", (cmd_id | 0x80000000));
-									fin_line += std::string(hex) + ";";
-								}
+							{	//	Response
+								fin_line += pnode->data + "_response uint32 = ";
+								char hex[15] = {};
+								sprintf(hex, "0x%x", (cmd_id | 0x80000000));
+								fin_line += std::string(hex) + ";";
+							}	
 						}
 					}
 					else if (pnode->data_type == DT_CMT)
@@ -332,7 +354,7 @@ std::string go_output_t::i_get_header(const std::string& name)
 {
 	if (name.empty()) return std::string();
 
-	std::string header = "package JFCmd\r\n\r\n";
+	std::string header = "package Protocol\r\n\r\n";
 	header += "const (\r\n";
 
 	return std::move(header);

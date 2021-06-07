@@ -81,6 +81,7 @@ commands: /* empty */
 	global_comment:
 		GLOBALCMT
 		{
+			process_global_comment((char*)yylval);
 			printf("Global Comment : %s\n", (char*)yylval);
 		}
 		;
@@ -124,10 +125,17 @@ commands: /* empty */
 
 static int stage = 1;
 static int cmd_idx = 0;
+static int treat_as_sigleline_cmt = 0;
 
 void process_global_comment(const char* cont)
 {
-	jf_cmd_parser_t::instance()->set_global_comment(cont);
+	printf("process_global_comment tasc %d cur_line %d\n", treat_as_sigleline_cmt, yylineno);
+	if (treat_as_sigleline_cmt == yylineno) {
+		process_single_line_comment(cont);
+		treat_as_sigleline_cmt = 0;
+	} else {
+		jf_cmd_parser_t::instance()->set_global_comment(cont);
+	}
 }
 
 void process_single_line_comment(const char* cont)
@@ -196,6 +204,7 @@ void process_cmd(const char* cont)
 	}
 	else
 	{
+		treat_as_sigleline_cmt = yylineno;
 		jf_cmd_parser_t::instance()->set_cmd_name(cont, yylineno, cmd_idx++);
 		printf("Cmd Name : %s\n", cont);
 	}

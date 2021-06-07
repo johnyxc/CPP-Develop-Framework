@@ -91,17 +91,42 @@ int yywrap() {
     return 1;
 }
 
+bool check_utf8_bom(FILE* fd)
+{
+	unsigned char B = 0, O = 0, M = 0;
+	fread(&B, 1, 1, fd);
+	fread(&O, 1, 1, fd);
+	fread(&M, 1, 1, fd);
+	return (B == 0xef) &&
+		(O == 0xbb) &&
+		(M == 0xbf);
+}
+
 int main(int argc, char** argv)
 {
 	--argc;
     ++argv;
     if (argc > 0)
 	{
-        yyset_in(fopen(argv[0], "r"));
+		auto* fd = fopen(argv[0], "r");
+		if (!check_utf8_bom(fd))
+		{
+			printf("Character encoding is not support, please use utf8-bom\n");
+			system("pause");
+			return 0;
+		}
+        yyset_in(fd);
 	}
     else
 	{
-        yyset_in(fopen("cmd_def.zdef", "r"));
+		auto* fd = fopen("cmd_def.zdef", "r");
+		if (!check_utf8_bom(fd))
+		{
+			printf("Character encoding is not support, please use utf8-bom\n");
+			system("pause");
+			return 0;
+		}
+        yyset_in(fd);
 	}
 
 	--argc;
@@ -487,7 +512,7 @@ static const yytype_int8 yyrhs[] =
 static const yytype_uint8 yyrline[] =
 {
        0,    63,    63,    64,    68,    70,    72,    74,    76,    78,
-      82,    89,    97,   104,   111,   118
+      82,    90,    98,   105,   112,   119
 };
 #endif
 
@@ -1385,13 +1410,14 @@ yyreduce:
 /* Line 1792 of yacc.c  */
 #line 83 "parser.y"
     {
+			process_global_comment((char*)yylval);
 			printf("Global Comment : %s\n", (char*)yylval);
 		}
     break;
 
   case 11:
 /* Line 1792 of yacc.c  */
-#line 90 "parser.y"
+#line 91 "parser.y"
     {
 			process_single_line_comment((char*)yylval);
 			printf("Single Line Comment : %s\n", (char*)yylval);
@@ -1400,7 +1426,7 @@ yyreduce:
 
   case 12:
 /* Line 1792 of yacc.c  */
-#line 98 "parser.y"
+#line 99 "parser.y"
     {
 			process_index((char*)yylval);
 		}
@@ -1408,7 +1434,7 @@ yyreduce:
 
   case 13:
 /* Line 1792 of yacc.c  */
-#line 105 "parser.y"
+#line 106 "parser.y"
     {
 			process_create_new_file((char*)yylval);
 		}
@@ -1416,7 +1442,7 @@ yyreduce:
 
   case 14:
 /* Line 1792 of yacc.c  */
-#line 112 "parser.y"
+#line 113 "parser.y"
     {
 			process_take_bits((char*)yylval);
 		}
@@ -1424,7 +1450,7 @@ yyreduce:
 
   case 15:
 /* Line 1792 of yacc.c  */
-#line 119 "parser.y"
+#line 120 "parser.y"
     {
 			process_cmd((char*)yylval);
 		}
@@ -1432,7 +1458,7 @@ yyreduce:
 
 
 /* Line 1792 of yacc.c  */
-#line 1436 "parser.tab.cpp"
+#line 1437 "parser.tab.cpp"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1664,15 +1690,22 @@ yyreturn:
 
 
 /* Line 2055 of yacc.c  */
-#line 123 "parser.y"
+#line 124 "parser.y"
 
 
 static int stage = 1;
 static int cmd_idx = 0;
+static int treat_as_sigleline_cmt = 0;
 
 void process_global_comment(const char* cont)
 {
-	jf_cmd_parser_t::instance()->set_global_comment(cont);
+	printf("process_global_comment tasc %d cur_line %d\n", treat_as_sigleline_cmt, yylineno);
+	if (treat_as_sigleline_cmt == yylineno) {
+		process_single_line_comment(cont);
+		treat_as_sigleline_cmt = 0;
+	} else {
+		jf_cmd_parser_t::instance()->set_global_comment(cont);
+	}
 }
 
 void process_single_line_comment(const char* cont)
@@ -1741,6 +1774,7 @@ void process_cmd(const char* cont)
 	}
 	else
 	{
+		treat_as_sigleline_cmt = yylineno;
 		jf_cmd_parser_t::instance()->set_cmd_name(cont, yylineno, cmd_idx++);
 		printf("Cmd Name : %s\n", cont);
 	}

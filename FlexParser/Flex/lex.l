@@ -16,8 +16,8 @@ void command_name(const char* cont);
 "//"+.*								double_slash_type_comment(yytext);		return SGLINECMT;
 "\["[0-9]+"\]"						first_meet_index(yytext);				return INDEX;
 "\["[a-zA-Z_]*"\]"					command_series_name(yytext);			return FILENAME;
-"\["[1-9]+[-][1-9]+"\]"				command_tasks_bits(yytext);				return TAKEBITS;
-"jf_msg_"[a-zA-Z_]+[ ]*";"			command_name(yytext);					return CMDNAME;
+"\["[0-9]+[-][0-9]+"\]"				command_tasks_bits(yytext);				return TAKEBITS;
+[a-zA-Z0-9_]+[ ]*";"				command_name(yytext);					return CMDNAME;
 (\n|\r\n)							/* ignore */;
 [ \t]								/* ignore */;
 %%
