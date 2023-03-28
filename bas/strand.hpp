@@ -1,5 +1,5 @@
-#ifndef __STRAND_HPP_2021_06_04__
-#define __STRAND_HPP_2021_06_04__
+#ifndef __STRAND_HPP_2016_09_22__
+#define __STRAND_HPP_2016_09_22__
 #include <functional>
 #include <bas/osfunc.hpp>
 
@@ -31,15 +31,12 @@ namespace bas
 
 			void set_using(bool b)
 			{
-				long in_use = b ? 1 : 0;
-				atom_exchange(&in_use_, in_use);
+				atom_exchange(&in_use_, b ? 1 : 0);
 			}
 
 			bool is_using()
 			{
-				auto in_use = false;
-				if (InterlockedCompareExchange(&in_use_, 1, 0)) in_use = true;
-				return in_use;
+				return (bool)InterlockedCompareExchange(&in_use_, 0, 0);
 			}
 
 			void leave_section()

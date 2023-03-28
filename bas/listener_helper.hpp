@@ -14,11 +14,8 @@ namespace bas
 			std::enable_shared_from_this<listener_helper_t>
 		{
 		public:
-			listener_helper_t(standard_header* hdr) : std_hdr_(hdr) {}
-			~listener_helper_t() 
-			{
-				LOG(LT_DEBUG) << "Deconstructor In listener_helper_t" << LOG_END;
-			}
+			listener_helper_t(standard_header* hdr) : std_hdr_(hdr), stopped_(false) {}
+			~listener_helper_t() {}
 
 		public:
 			void set_strand(std::shared_ptr<strand_t> strand)
@@ -33,11 +30,21 @@ namespace bas
 
 				auto shared_this = shared_from_this();
 				netport_->set_error_callback([shared_this, this](int err) {
-					if (disconn_cb_) disconn_cb_(err);
+					decltype(disconn_cb_) disconn_cb;
+					{
+						std::lock_guard<std::recursive_mutex> lock(mtx_);
+						disconn_cb = disconn_cb_;
+					}
+					if (disconn_cb) disconn_cb(err);
 				});
 				netport_->set_recv_callback([shared_this, this]
 					(const char* hdr, const char* body, int body_len) {
-					if (recv_cb_) recv_cb_(hdr, body, body_len);
+					decltype(recv_cb_) recv_cb;
+					{
+						std::lock_guard<std::recursive_mutex> lock(mtx_);
+						recv_cb = recv_cb_;
+					}
+					if (recv_cb) recv_cb(hdr, body, body_len);
 				});
 				netport_->set_send_callback([shared_this](int){});
 
@@ -48,9 +55,11 @@ namespace bas
 
 			bool uninit()
 			{
-				if (netport_) netport_->clear();
-				recv_cb_	= {};
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				stopped_ = true;
+				recv_cb_ = {};
 				disconn_cb_ = {};
+				if (netport_) netport_->clear();
 				return true;
 			}
 
@@ -66,10 +75,13 @@ namespace bas
 
 			void send_message(const char* data, int len)
 			{
-				if (netport_) netport_->send_message(data, len);
+				std::lock_guard<std::recursive_mutex> lock(mtx_);
+				if (netport_ && !stopped_) netport_->send_message(data, len);
 			}
 
 		private:
+			bool							stopped_;
+			std::recursive_mutex			mtx_;
 			standard_header*				std_hdr_;
 			std::shared_ptr<netport_t>		netport_;
 			std::shared_ptr<strand_t>		strand_;

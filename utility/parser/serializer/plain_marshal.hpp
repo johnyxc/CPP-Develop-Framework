@@ -3,6 +3,8 @@
 #include <list>
 #include <vector>
 #include <string>
+#include <memory>
+#include <iostream>
 
 //	io 接口定义
 struct io_opt_t
@@ -48,7 +50,7 @@ public:
 		auto bt = fwrite(data.c_str(), 1, data.length(), fd);
 		fclose(fd);
 
-		return bt;
+		return (int)bt;
 	}
 
 private:
@@ -79,7 +81,7 @@ struct plain_marshal_t
 
 		if (body_len != real_len)
 		{
-			(body_len < real_len) ? tmp_len = body_len : tmp_len = real_len;
+			(body_len < (int)real_len) ? tmp_len = body_len : tmp_len = (int)real_len;
 		}
 		else
 		{

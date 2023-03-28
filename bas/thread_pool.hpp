@@ -12,8 +12,7 @@
 #include <iostream>
 #include <utility/log/Log.h>
 using namespace jf_log;
-#define	MAX_THREAD_COUNT	2
-#define INNER_THREAD_COUNT	2
+#define DEF_THREAD_COUNT 2
 
 namespace bas
 {
@@ -29,7 +28,7 @@ namespace bas
 				evt_ = get_event_hdl();
 			}
 
-			void start()
+			void start(int idx)
 			{
 				work_trd_ = std::make_unique<std::thread>([this]() {
 					while (alive_)
@@ -51,9 +50,11 @@ namespace bas
 							try
 							{
 								fo();
-							} catch (std::exception& e) {
-								std::cout<< "thread_pool exception : " << e.what() << std::endl;
-							} catch (...) {
+							}
+							catch (std::exception& e) {
+								std::cout << "thread_pool exception : " << e.what() << std::endl;
+							}
+							catch (...) {
 								std::cout << "thread_pool exception" << std::endl;
 							}
 						}
@@ -64,6 +65,7 @@ namespace bas
 						}
 					}
 				});
+				SetThreadAffinityMask(work_trd_->native_handle(), 1 << idx);
 			}
 
 			void stop()
@@ -105,16 +107,17 @@ namespace bas
 
 		struct thread_pool_t
 		{
-		public :
+		public:
 			thread_pool_t() : worker_count_()
 			{}
 			~thread_pool_t()
 			{}
 
-		public :
+		public:
 			void start()
 			{
 				worker_count_ = std::thread::hardware_concurrency();
+				if (!worker_count_) worker_count_ = DEF_THREAD_COUNT;
 				worker_ = std::make_unique<asio::io_service::work>(io_);
 
 				for (int i = 0; i < worker_count_; i++)
@@ -128,7 +131,7 @@ namespace bas
 				{
 					auto worker = std::make_shared<inner_thread_t>();
 					workers_.emplace_back(worker);
-					worker->start();
+					worker->start(i);
 				}
 			}
 
@@ -172,13 +175,14 @@ namespace bas
 
 			asio::io_service& get_service() { return io_; }
 
-		private :
+		private:
 			void i_on_thread()
 			{
 				try
 				{
 					io_.run();
-				} catch (...) {}
+				}
+				catch (...) {}
 			}
 
 			std::shared_ptr<inner_thread_t> i_get_appropriate_worker()
@@ -189,7 +193,7 @@ namespace bas
 				for (auto i = 0; i < worker_count_; i++)
 				{
 					auto task_size = workers_[i]->get_task_size();
-					if (task_size < smallest)
+					if (task_size <= smallest)
 					{
 						smallest = task_size;
 						worker = workers_[i];
@@ -199,14 +203,14 @@ namespace bas
 				return worker;
 			}
 
-		public :
+		public:
 			static thread_pool_t* instance()
 			{
 				static thread_pool_t self;
 				return &self;
 			}
 
-		private :
+		private:
 			int													 worker_count_;
 
 			asio::io_service									 io_;
