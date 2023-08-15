@@ -45,6 +45,9 @@ namespace jf_log
 
 	struct log_end_symbol
 	{};
+
+	struct log_end_and_flush_symbol
+	{};
 }
 
 #define LOGGER_COUNT	4
@@ -61,6 +64,8 @@ public:
 	void reset_fd(FILE* fd);
 	void set_forbidden(bool b);
 	bool get_forbidden();
+	void flush_log();
+
 	template <typename T>
 	void write_log(const T& cont);
 
@@ -176,6 +181,14 @@ public:
 		jf_parent_->write_log(hdr);
 		log_content_.clear();
 
+		return *this;
+	}
+
+	template <>
+	jf_log_t& operator << (const jf_log::log_end_and_flush_symbol& les)
+	{
+		*this << jf_log::log_end_symbol();
+		jf_parent_->flush_log();
 		return *this;
 	}
 
@@ -300,6 +313,14 @@ public:
 		return *this;
 	}
 
+	template <>
+	jf_log_t_w& operator << (const jf_log::log_end_and_flush_symbol& les)
+	{
+		*this << jf_log::log_end_symbol();
+		jf_parent_->flush_log();
+		return *this;
+	}
+
 private:
 	std::wstring i_get_log_head(const std::wstring& ti);
 
@@ -362,6 +383,10 @@ bool Init_Log(const std::string& _folder, const std::string& _log_name);
 #define LOGW(type)	\
 	jf_log_manager_t::instance()->get_jf_log_w(type)
 
+//	本条日志结束
 #define LOG_END jf_log::log_end_symbol()
+
+//	本条日志结束并立即落盘
+#define LOG_FLUSH jf_log::log_end_and_flush_symbol()
 
 #endif

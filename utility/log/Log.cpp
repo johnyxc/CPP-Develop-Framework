@@ -25,15 +25,18 @@ bool jf_log_parent::get_forbidden()
 	return forbidden_;
 }
 
+void jf_log_parent::flush_log()
+{
+	std::lock_guard<std::recursive_mutex> lock(*mutex_);
+	if (fd_) fflush(fd_);
+}
+
 template <typename T>
 void jf_log_parent::write_log(const T& cont)
 {
 	typedef typename T::value_type VT;
-	if (fd_)
-	{
-		std::lock_guard<std::recursive_mutex> lock(*mutex_);
-		fwrite(cont.c_str(), sizeof(VT), cont.length(), fd_);
-	}
+	std::lock_guard<std::recursive_mutex> lock(*mutex_);
+	if (fd_) fwrite(cont.c_str(), sizeof(VT), cont.length(), fd_);
 }
 //////////////////////////////////////////////////////////////////////////
 
